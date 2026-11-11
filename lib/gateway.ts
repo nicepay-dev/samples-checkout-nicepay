@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { buildCheckoutPayload } from "./payload";
 import { NicepayRegistrationResponse, NicepayCheckoutResult, NicepayTransactionStatusPayload, NicepayTransactionStatusResponse } from "./types";
 import { getCartLines } from "./cart";
@@ -11,6 +12,39 @@ function getGatewayUrls() {
     registrationUrl: `${normalizedBaseUrl}/redirect/v2/registration`,
     getStatusUrl: `${normalizedBaseUrl}/direct/v2/inquiry`,
   };
+}
+
+async function postToNicepay(operation: "registration" | "inquiry", url: string, payload: object) {
+  const body = JSON.stringify(payload);
+  const request = { requestId: randomUUID(), operation, method: "POST", path: new URL(url).pathname };
+  const startedAt = performance.now();
+  console.info("[nicepay] Sending request", request);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body,
+    });
+  } catch (error) {
+    console.error("[nicepay] Request failed before receiving a response", {
+      ...request,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+    throw error;
+  }
+
+  console.info("[nicepay] Received response", {
+    ...request,
+    status: response.status,
+    durationMs: Math.round(performance.now() - startedAt),
+  });
+  return response;
 }
 
 function normalizeRedirectUrl(response: NicepayRegistrationResponse) {
@@ -36,15 +70,7 @@ export async function registerNicepayTransaction(lines: ReturnType<typeof getCar
   const registrationPayload = await buildCheckoutPayload(lines);
   const { registrationUrl } = getGatewayUrls();
 
-  const response = await fetch(registrationUrl, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify(registrationPayload),
-  });
+  const response = await postToNicepay("registration", registrationUrl, registrationPayload);
 
   const responseText = await response.text();
   const registrationResponse = parseRegistrationResponse(responseText);
@@ -93,15 +119,7 @@ export async function getTransactionStatus(
   payload: NicepayTransactionStatusPayload,
 ): Promise<NicepayTransactionStatusResponse> {
   const { getStatusUrl } = getGatewayUrls();
-  const response = await fetch(getStatusUrl, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const response = await postToNicepay("inquiry", getStatusUrl, payload);
 
   const responseText = await response.text();
   const statusResponse = parseStatusResponse(responseText) as NicepayTransactionStatusResponse;
