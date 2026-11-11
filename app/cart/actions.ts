@@ -19,6 +19,7 @@ export async function updateCartQuantityAction(formData: FormData) {
   const delta = typeof deltaValue === "string" ? Number(deltaValue) : 0;
 
   if (!getProductById(productId) || !Number.isFinite(delta)) {
+    console.warn("[cart] Quantity update rejected", { reason: "invalid_input" });
     redirect("/cart");
   }
 
@@ -39,6 +40,7 @@ export async function updateCartQuantityAction(formData: FormData) {
         maxAge: ONE_WEEK_SECONDS,
       });
 
+      console.info("[cart] Product removed", { productId });
       redirect("/cart");
     }
   } else if (delta > 0) {
@@ -53,6 +55,7 @@ export async function updateCartQuantityAction(formData: FormData) {
     maxAge: ONE_WEEK_SECONDS,
   });
 
+  console.info("[cart] Quantity update completed", { productId });
   redirect("/cart");
 }
 
@@ -64,6 +67,7 @@ export async function checkoutAction(state: CheckoutActionState): Promise<Checko
   const lines = getCartLines(cart);
 
   if (lines.length === 0) {
+    console.info("[checkout] Checkout skipped", { reason: "empty_cart" });
     return { error: "Your cart is empty." };
   }
 
@@ -71,12 +75,13 @@ export async function checkoutAction(state: CheckoutActionState): Promise<Checko
   try {
     checkoutResult = await registerNicepayTransaction(lines);
   } catch (error) {
-    console.error("NICEPAY checkout failed", error);
+    console.error("[checkout] NICEPAY registration failed");
     return { error: error instanceof Error ? error.message : previousError ?? "Checkout failed" };
   }
 
   cookieStore.delete(CART_COOKIE_NAME);
   revalidatePath("/cart", "page");
 
+  console.info("[checkout] Redirecting to NICEPAY");
   redirect(checkoutResult.redirectUrl);
 }

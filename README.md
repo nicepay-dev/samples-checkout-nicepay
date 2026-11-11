@@ -29,7 +29,7 @@ Create a `.env.local` file in the project root:
 ```env
 # Your store's public URL (used for webhook and the redirect page)
 STORE_URL=http://localhost:3000
-CART_SIGNING_SECRET=replace_with_a_random_secret
+CART_SIGNING_SECRET=replace_with_a_generated_secret_at_least_32_characters_long
 
 # NICEPAY credentials
 NICEPAY_IMID=IONPAYTEST
@@ -55,7 +55,7 @@ This project is configured for Vercel deployment. The storefront and cart can be
 
 1. Push this project to a private GitHub repository. Do not commit `.env.local` or any merchant key.
 2. In Vercel, select **Add New → Project** and import the repository. Vercel should detect Next.js automatically. Keep the default build command (`npm run build`) and output settings.
-3. In **Project → Settings → Environment Variables**, add the following variables to **Preview** and **Production** only if you intend to enable test checkout in those deployments:
+3. In **Project → Settings → Environment Variables**, set `CART_SIGNING_SECRET` in every environment that uses the cart. Generate a secret with `node -p "require('node:crypto').randomBytes(32).toString('hex')"` and paste the output as the value. Set the `NICEPAY_*` variables in the environments where you want to enable test checkout.
 
    | Variable | Demo value |
    | --- | --- |
@@ -66,7 +66,7 @@ This project is configured for Vercel deployment. The storefront and cart can be
    | `STORE_URL` | Optional. Set to your stable public HTTPS domain if you have one. |
 
    If `STORE_URL` is omitted, the app automatically uses Vercel's deployment URL (`VERCEL_URL`) for callback and webhook URLs. Locally, it falls back to `http://localhost:3000`.
-4. Deploy. After deployment, open the Vercel URL and test browsing, cart, and (if credentials are configured) NICEPAY test checkout.
+4. Deploy after saving the variables. Vercel applies environment changes to new deployments. Open the new deployment URL, add a product, and confirm it appears in the cart. If Add to Cart returns HTTP 500, check Vercel Runtime Logs for the failed `POST /`. A `CART_SIGNING_SECRET` error means that deployment received a missing or shorter-than-32-character value.
 5. If using a custom domain, set `STORE_URL` to that exact HTTPS origin and redeploy.
 
 **Demo safety:** Keep the NICEPAY test key in Vercel's server-side environment variables only. Never use `NEXT_PUBLIC_` for credentials. A public demo with test checkout enabled can generate test transactions, so share it intentionally. This sample does not persist orders or implement fulfillment.

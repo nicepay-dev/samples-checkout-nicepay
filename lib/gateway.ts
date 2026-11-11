@@ -50,6 +50,7 @@ export async function registerNicepayTransaction(lines: ReturnType<typeof getCar
   const registrationResponse = parseRegistrationResponse(responseText);
 
   if (!response.ok) {
+    console.error("[nicepay] Registration HTTP error", { status: response.status });
     throw new Error(
       typeof registrationResponse === "object" && registrationResponse && "resultMsg" in registrationResponse
         ? String(registrationResponse.resultMsg ?? "NICEPAY registration failed")
@@ -58,15 +59,18 @@ export async function registerNicepayTransaction(lines: ReturnType<typeof getCar
   }
 
   if ("raw" in registrationResponse) {
+    console.error("[nicepay] Registration response was invalid JSON");
     throw new Error("Invalid JSON response from NICEPAY");
   }
 
   if (registrationResponse.resultCd !== "0000") {
+    console.warn("[nicepay] Registration rejected");
     throw new Error(registrationResponse.resultMsg ?? "NICEPAY registration failed");
   }
 
   const redirectUrl = normalizeRedirectUrl(registrationResponse);
   if (!redirectUrl) {
+    console.error("[nicepay] Registration response missing payment URL");
     throw new Error("NICEPAY response missing payment URL");
   }
 
@@ -103,6 +107,7 @@ export async function getTransactionStatus(
   const statusResponse = parseStatusResponse(responseText) as NicepayTransactionStatusResponse;
 
   if (!response.ok) {
+    console.error("[nicepay] Inquiry HTTP error", { status: response.status });
     throw new Error(
       typeof statusResponse === "object" && statusResponse && "resultCd" in statusResponse && "resultMsg" in statusResponse
         ? String(statusResponse.resultMsg ?? "NICEPAY inquiry failed")
@@ -111,6 +116,7 @@ export async function getTransactionStatus(
   }
 
   if ("raw" in statusResponse) {
+    console.error("[nicepay] Inquiry response was invalid JSON");
     throw new Error("Invalid JSON response from NICEPAY");
   }
 

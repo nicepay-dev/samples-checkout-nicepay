@@ -57,16 +57,19 @@ export default async function ResultPage({
       const refMatches = !inquiry.referenceNo || inquiry.referenceNo === reference;
 
       if (!txMatches || !refMatches) {
+        console.warn("[payment-result] Transaction verification mismatch");
         status = "failed";
         message = "Transaction verification mismatch. Please contact support.";
       } else {
         status = resolveStatus(inquiry.payMethod,inquiry.status);
+        console.info("[payment-result] NICEPAY transaction verified", { status });
         message = inquiry.resultMsg ?? "Transaction state verified with NICEPAY.";
         verifiedTxId = inquiry.tXid ?? tXid;
         verifiedReference = inquiry.referenceNo ?? reference;
         verifiedAmount = parseAmount(inquiry.amt) || amount;
       }
     } catch (error) {
+      console.error("[payment-result] NICEPAY inquiry failed");
       status = "pending";
       message = error instanceof Error ? error.message : "Unable to verify payment status right now.";
     }

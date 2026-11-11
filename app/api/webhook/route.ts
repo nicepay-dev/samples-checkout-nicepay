@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     eventPayload = Object.fromEntries(formData.entries());
   } catch {
+    console.warn("[webhook] Notification rejected", { reason: "invalid_payload" });
     return NextResponse.json(
       { ok: false, message: "Invalid payload" },
       { status: 400 },
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest) {
   let iMid: string;
   let merchantKey: string;
   try { ({ iMid, merchantKey } = getNicepayConfig()); } catch {
+    console.error("[webhook] Configuration validation failed");
     return NextResponse.json(
       { ok: false, message: "Webhook credentials are not configured" },
       { status: 500 },
@@ -31,6 +33,7 @@ export async function POST(request: NextRequest) {
   const receivedMerchantToken = readParam(eventPayload.merchantToken as WebhookField);
 
   if (!tXid || !amt || !receivedMerchantToken) {
+    console.warn("[webhook] Notification rejected", { reason: "missing_fields" });
     return NextResponse.json(
       { ok: false, message: "Missing required webhook fields" },
       { status: 400 },
@@ -39,6 +42,7 @@ export async function POST(request: NextRequest) {
 
   const expectedMerchantToken = buildWebhookMerchantToken(iMid, tXid, amt, merchantKey);
   if (receivedMerchantToken.toLowerCase() !== expectedMerchantToken.toLowerCase()) {
+    console.warn("[webhook] Notification rejected", { reason: "invalid_merchant_token" });
     return NextResponse.json(
       { ok: false, message: "Invalid merchant token" },
       { status: 401 },
@@ -58,6 +62,7 @@ export async function POST(request: NextRequest) {
       merchantToken: inquiryMerchantToken,
     });
 
+    console.info("[webhook] NICEPAY notification verified");
     // NOTE: After verifying the transaction status, you can process the webhook event as needed (e.g., update your database, trigger notifications, etc.).
     return NextResponse.json(
       {
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
       { status: 200 },
     );
   } catch (error) {
-    console.error("NICEPAY webhook verification failed", error instanceof Error ? error.message : "Unknown error");
+    console.error("[webhook] NICEPAY inquiry failed");
     return NextResponse.json(
       {
         ok: false,

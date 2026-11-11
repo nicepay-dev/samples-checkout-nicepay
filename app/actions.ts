@@ -16,30 +16,43 @@ export async function addToCartAction(formData: FormData) {
 
   const product = getProductById(productId);
   if (!product) {
+    console.warn("[cart] Add to cart rejected", { reason: "unknown_product" });
     return { success: false as const };
   }
 
-  const cookieStore = await cookies();
-  const existingCart = readCartFromCookie(cookieStore.get(CART_COOKIE_NAME)?.value);
+  let stage = "read_cookie";
+  try {
+    const cookieStore = await cookies();
+    const existingCart = readCartFromCookie(cookieStore.get(CART_COOKIE_NAME)?.value);
 
-  const nextItems = [...existingCart.items];
-  const existing = nextItems.find((item) => item.productId === productId);
-  if (existing) {
-    existing.quantity += safeQuantity;
-  } else {
-    nextItems.push({ productId, quantity: safeQuantity });
+    const nextItems = [...existingCart.items];
+    const existing = nextItems.find((item) => item.productId === productId);
+    if (existing) {
+      existing.quantity += safeQuantity;
+    } else {
+      nextItems.push({ productId, quantity: safeQuantity });
+    }
+
+    stage = "sign_cookie";
+    const signedCookie = buildSignedCartCookie({ items: nextItems });
+    stage = "write_cookie";
+    cookieStore.set(CART_COOKIE_NAME, signedCookie, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: ONE_WEEK_SECONDS,
+    });
+
+    stage = "revalidate_pages";
+    revalidatePath("/", "page");
+    revalidatePath("/cart", "page");
+  } catch (error) {
+    console.error("[cart] Add to cart failed", { stage, productId: product.id });
+    throw error;
   }
 
-  cookieStore.set(CART_COOKIE_NAME, buildSignedCartCookie({ items: nextItems }), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: ONE_WEEK_SECONDS,
-  });
-
-  revalidatePath("/", "page");
-  revalidatePath("/cart", "page");
+  console.info("[cart] Product added", { productId: product.id });
 
   return {
     success: true as const,
