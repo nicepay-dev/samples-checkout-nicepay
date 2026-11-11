@@ -2,9 +2,16 @@ import "server-only";
 import { buildCheckoutPayload } from "./payload";
 import { NicepayRegistrationResponse, NicepayCheckoutResult, NicepayTransactionStatusPayload, NicepayTransactionStatusResponse } from "./types";
 import { getCartLines } from "./cart";
+import { getNicepayConfig } from "@/config/config";
 
-const registrationUrl = `${process.env.NICEPAY_BASE_URL}/redirect/v2/registration`;
-const getStatusUrl = `${process.env.NICEPAY_BASE_URL}/direct/v2/inquiry`;
+function getGatewayUrls() {
+  const { baseUrl } = getNicepayConfig();
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  return {
+    registrationUrl: `${normalizedBaseUrl}/redirect/v2/registration`,
+    getStatusUrl: `${normalizedBaseUrl}/direct/v2/inquiry`,
+  };
+}
 
 function normalizeRedirectUrl(response: NicepayRegistrationResponse) {
   const paymentUrl = response.paymentURL;
@@ -26,7 +33,8 @@ function parseRegistrationResponse(responseText: string) {
 }
 
 export async function registerNicepayTransaction(lines: ReturnType<typeof getCartLines>): Promise<NicepayCheckoutResult> {
-  const registrationPayload = buildCheckoutPayload(lines);
+  const registrationPayload = await buildCheckoutPayload(lines);
+  const { registrationUrl } = getGatewayUrls();
 
   const response = await fetch(registrationUrl, {
     method: "POST",
@@ -80,6 +88,7 @@ function parseStatusResponse(responseText: string) {
 export async function getTransactionStatus(
   payload: NicepayTransactionStatusPayload,
 ): Promise<NicepayTransactionStatusResponse> {
+  const { getStatusUrl } = getGatewayUrls();
   const response = await fetch(getStatusUrl, {
     method: "POST",
     cache: "no-store",

@@ -3,9 +3,9 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { PRODUCTS } from "./data/products";
 import { Cart, CartLine } from "./types";
+import { getCartSigningSecret } from "@/config/config";
 
 export const CART_COOKIE_NAME = "nicepay_shop_cart";
-const SIGNING_SECRET = process.env.CART_SIGNING_SECRET ?? "nicepay-shop-secret";
 
 export function getProductById(productId: string) {
   return PRODUCTS.find((product) => product.id === productId);
@@ -16,7 +16,7 @@ function cartFallback(): Cart {
 }
 
 function sign(value: string) {
-  return createHmac("sha256", SIGNING_SECRET).update(value).digest("base64url");
+  return createHmac("sha256", getCartSigningSecret()).update(value).digest("base64url");
 }
 
 function toBase64Url(input: string) {

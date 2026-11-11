@@ -3,9 +3,8 @@ import Link from "next/link";
 import type { PayMethodCode } from "@/lib/types";
 import { getTransactionStatus } from "@/lib/gateway";
 import { readParam, parseAmount, normalizeAmount, buildNicepayTimestamp, buildMerchantToken, resolveStatus, statusUI } from "@/lib/utils";
+import { getNicepayConfig } from "@/config/config";
 
-const iMid = process.env.NICEPAY_IMID as string;
-const merchantKey = process.env.NICEPAY_MERCHANT_KEY as string;
 
 export default async function ResultPage({
   searchParams,
@@ -35,6 +34,7 @@ export default async function ResultPage({
     message = `Payment failed with code ${resultCd}: ${resultMsg}`;
   } else if (tXid && reference && normalizedAmount) {
     try {
+      const { iMid, merchantKey } = getNicepayConfig();
       const timeStamp = buildNicepayTimestamp();
       const merchantToken = buildMerchantToken(
         timeStamp,

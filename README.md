@@ -20,7 +20,7 @@ NICEPAY Shop is a demo Next.js storefront that shows how to integrate a web app 
 ### Prerequisites
 
 - Node.js 20+
-- A NICEPAY merchant account (iMID + merchant key) or you can just use our testing iMID and its merchant key.
+- The NICEPAY test credentials supplied to your team, or your own merchant credentials.
 
 ### Environment Variables
 
@@ -29,11 +29,12 @@ Create a `.env.local` file in the project root:
 ```env
 # Your store's public URL (used for webhook and the redirect page)
 STORE_URL=http://localhost:3000
+CART_SIGNING_SECRET=replace_with_a_random_secret
 
 # NICEPAY credentials
-NICEPAY_IMID=your_merchant_imid
-NICEPAY_MERCHANT_KEY=your_merchant_key
-NICEPAY_BASE_URL=https://dev.nicepay.co.id
+NICEPAY_IMID=IONPAYTEST
+NICEPAY_MERCHANT_KEY=your_test_merchant_key
+NICEPAY_BASE_URL=https://dev-services.nicepay.co.id
 ```
 
 ### Running Locally
@@ -45,7 +46,32 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-> **Webhook note:** NICEPAY cannot reach `localhost`. Use a tunnel (e.g. [ngrok](https://ngrok.com) or [CLoudflared Tunnel](https://developers.cloudflare.com/tunnel/)) and set `STORE_URL` to the tunnel URL so the webhook (notification) works end-to-end in your local development setup.
+> **Webhook note:** NICEPAY cannot reach `localhost`. For local webhook testing, use a public HTTPS tunnel and set `STORE_URL` to that tunnel URL. On Vercel, the app automatically uses the deployment URL when `STORE_URL` is not explicitly set.
+
+
+## Deploy a public demo on Vercel
+
+This project is configured for Vercel deployment. The storefront and cart can be browsed without NICEPAY credentials; payment registration, transaction inquiry, and webhook verification require the test credentials below.
+
+1. Push this project to a private GitHub repository. Do not commit `.env.local` or any merchant key.
+2. In Vercel, select **Add New → Project** and import the repository. Vercel should detect Next.js automatically. Keep the default build command (`npm run build`) and output settings.
+3. In **Project → Settings → Environment Variables**, add the following variables to **Preview** and **Production** only if you intend to enable test checkout in those deployments:
+
+   | Variable | Demo value |
+   | --- | --- |
+   | `NICEPAY_IMID` | `IONPAYTEST` |
+   | `NICEPAY_MERCHANT_KEY` | Your NICEPAY test merchant key |
+   | `NICEPAY_BASE_URL` | `https://dev-services.nicepay.co.id` |
+   | `CART_SIGNING_SECRET` | A unique random secret (32+ characters) |
+   | `STORE_URL` | Optional. Set to your stable public HTTPS domain if you have one. |
+
+   If `STORE_URL` is omitted, the app automatically uses Vercel's deployment URL (`VERCEL_URL`) for callback and webhook URLs. Locally, it falls back to `http://localhost:3000`.
+4. Deploy. After deployment, open the Vercel URL and test browsing, cart, and (if credentials are configured) NICEPAY test checkout.
+5. If using a custom domain, set `STORE_URL` to that exact HTTPS origin and redeploy.
+
+**Demo safety:** Keep the NICEPAY test key in Vercel's server-side environment variables only. Never use `NEXT_PUBLIC_` for credentials. A public demo with test checkout enabled can generate test transactions, so share it intentionally. This sample does not persist orders or implement fulfillment.
+
+**Callback endpoints:** NICEPAY redirects the shopper to `/checkout-return` and sends notifications to `/api/webhook`. The deployment must be publicly reachable over HTTPS for these server-to-server requests.
 
 ## Project Structure
 

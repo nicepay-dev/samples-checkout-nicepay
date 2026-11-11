@@ -1,19 +1,18 @@
 import { SELLERS } from "./data/sellers";
 import { CUSTOMER } from "./data/customer";
 import { NicepayRegistrationPayload } from "./types";
-import { resolveStoreUrls } from "@/config/config";
+import { getNicepayConfig, resolveStoreUrls } from "@/config/config";
+import { headers } from "next/headers";
 import { getCartLines } from "./cart";
 import type { CartLine } from "./types";
 import { buildNicepayTimestamp, buildMerchantToken } from "./utils";
 
-const iMid = process.env.NICEPAY_IMID as string;
-const merchantKey = process.env.NICEPAY_MERCHANT_KEY as string;
 
-function buildCartData(lines: ReturnType<typeof getCartLines>) {
+function buildCartData(lines: ReturnType<typeof getCartLines>, storeUrl: string) {
   return JSON.stringify({
     count: String(lines.length),
     item: lines.map((line) => ({
-      img_url: line.product.imageSrc ?? "",
+      img_url: line.product.imageSrc ? new URL(line.product.imageSrc, storeUrl).toString() : "",
       goods_name: line.product.name,
       goods_detail: line.product.name,
       goods_amt: String(line.product.price),
@@ -42,17 +41,21 @@ function buildCustomerAndDeliveryData() {
   };
 }
 
-export function buildCheckoutPayload(
+export async function buildCheckoutPayload(
   lines: CartLine[],
-): NicepayRegistrationPayload {
+): Promise<NicepayRegistrationPayload> {
+  const { iMid, merchantKey } = getNicepayConfig();
   const timestamp = buildNicepayTimestamp();
   const amount = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const referenceNo = `NICEPAY-SHOP-${Date.now()}`;
-  const { callBackUrl, dbProcessUrl } = resolveStoreUrls();
+  const { storeUrl, callBackUrl, dbProcessUrl } = resolveStoreUrls();
   const goodsName =
     lines.map((line) => line.product.name).join(", ") || "Cart items";
-  const cartData = buildCartData(lines);
+  const cartData = buildCartData(lines, storeUrl);
   const sellers = JSON.stringify(SELLERS);
+  const requestHeaders = await headers();
+  const forwardedFor = requestHeaders.get("x-forwarded-for");
+  const userIP = forwardedFor?.split(",")[0]?.trim() || requestHeaders.get("x-real-ip") || "127.0.0.1";
   const merchantToken = buildMerchantToken(
     timestamp,
     iMid,
@@ -63,7 +66,7 @@ export function buildCheckoutPayload(
 
   return {
     timeStamp: timestamp,
-    iMid: process.env.NICEPAY_IMID as string,
+    iMid,
     payMethod: "00",
     currency: "IDR",
     amt: String(amount),
@@ -74,7 +77,7 @@ export function buildCheckoutPayload(
     ...buildCustomerAndDeliveryData(),
     description: `Order ${referenceNo}`,
     merchantToken: merchantToken,
-    userIP: "127.0.0.1",
+    userIP,
     cartData: cartData,
     sellers: sellers,
     mitraCd: "",

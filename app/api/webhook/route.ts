@@ -1,29 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTransactionStatus } from "@/lib/gateway";
-import { buildMerchantToken, buildNicepayTimestamp, buildWebhookMerchantToken, normalizeAmount, readParam, resolveStatus } from "@/lib/utils";
-
-const iMid = process.env.NICEPAY_IMID;
-const merchantKey = process.env.NICEPAY_MERCHANT_KEY;
+import { buildMerchantToken, buildNicepayTimestamp, buildWebhookMerchantToken, normalizeAmount, readParam } from "@/lib/utils";
+import { getNicepayConfig } from "@/config/config";
 type WebhookField = string | string[] | undefined;
 
 export async function POST(request: NextRequest) {
-  console.log("NICEPAY notification request received", request);
-
   let eventPayload: Record<string, unknown>;
   try {
     const formData = await request.formData();
     eventPayload = Object.fromEntries(formData.entries());
-    console.log("NICEPAY notification payload:", eventPayload);
   } catch {
-    console.log("invalid webhook payload received, unable to parse form data");
     return NextResponse.json(
       { ok: false, message: "Invalid payload" },
       { status: 400 },
     );
   }
 
-  if (!iMid || !merchantKey) {
-    console.log("webhook credentials are not configured");
+  let iMid: string;
+  let merchantKey: string;
+  try { ({ iMid, merchantKey } = getNicepayConfig()); } catch {
     return NextResponse.json(
       { ok: false, message: "Webhook credentials are not configured" },
       { status: 500 },
@@ -36,7 +31,6 @@ export async function POST(request: NextRequest) {
   const receivedMerchantToken = readParam(eventPayload.merchantToken as WebhookField);
 
   if (!tXid || !amt || !receivedMerchantToken) {
-    console.log("missing required webhook fields");
     return NextResponse.json(
       { ok: false, message: "Missing required webhook fields" },
       { status: 400 },
@@ -45,7 +39,6 @@ export async function POST(request: NextRequest) {
 
   const expectedMerchantToken = buildWebhookMerchantToken(iMid, tXid, amt, merchantKey);
   if (receivedMerchantToken.toLowerCase() !== expectedMerchantToken.toLowerCase()) {
-    console.log("invalid merchant token");
     return NextResponse.json(
       { ok: false, message: "Invalid merchant token" },
       { status: 401 },
@@ -66,7 +59,6 @@ export async function POST(request: NextRequest) {
     });
 
     // NOTE: After verifying the transaction status, you can process the webhook event as needed (e.g., update your database, trigger notifications, etc.).
-    console.log("NICEPAY notification verified successfully:", inquiry);
     return NextResponse.json(
       {
         ok: true,
@@ -78,12 +70,11 @@ export async function POST(request: NextRequest) {
           iMid: iMid,
           status: inquiry.status,
         },
-        inquiry,
       },
       { status: 200 },
     );
   } catch (error) {
-    console.log("error verifying transaction status:", error);
+    console.error("NICEPAY webhook verification failed", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json(
       {
         ok: false,
